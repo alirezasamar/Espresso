@@ -1,0 +1,86 @@
+program ::= (classDef)+
+
+classDef ::= 'class' name ('extends' name)? '{' (classPart)* '}'
+
+classPart ::= fieldDecl | methodDecl
+
+fieldDecl ::= modifier type name = expression ';'
+
+methodDecl ::= modifier type name '(' argList ')' compoundStatement
+	     | modifier name '(' argList ')' compoundStatement      //constructor
+
+modifier ::= 'public' | 'protected' | 'private'
+
+type ::= 'int' | 'String' | 'boolean' | 'Object' | name
+
+argList ::= type name (',' type name)*
+
+paramList ::= expression (',' expression)*
+
+statement ::= stExpression ';'
+	    | compoundStatement
+
+	    | 'if' '(' expression ')' statement
+	    | 'for' '('(expression | decl)? ';' expression ';' (expression)? ')' statement
+
+	    | 'return' expression ';'
+
+	    | 'exit()' ';'
+	    | decl ';'
+	    | 'super' '(' paramList ')' ';' //super constructor call
+
+compoundStatement ::= '{' (statement)* '}'
+
+expression ::= stExpression
+	     | expression '.' name   //field access
+
+	     | '(' expression ')'
+
+	     | expression '+' expression   //Int
+	     | expression '++' expression //String
+	     | expression '-' expression   //Int
+	     | expression '*' expression   //Int
+	     | expression '/' expression   //Int
+
+	     | expression '||' expression   //Bool
+	     | expression '&&' expression   //Bool
+
+	     | expression '==' expression   //int, bool, string
+	     | expression '!=' expression   //int, bool, string
+
+	     | '-' expression   //Int
+	     | '!' expression   //Bool
+
+	     | name    //local variable or field
+	     | 'this'   //no extra syntax, since it is private local variable
+	     | '"' string '"'
+	     | number
+	     | 'true' | 'false' | 'null'
+
+stExpression ::= assignement
+	     | expression '.' name '(' paramList ')'  //method invocation
+	     | name '(' paramList ')'  //local method
+	     | 'new' name '(' paramList ')'  //constructor
+
+decl ::= type name '=' expression   
+assignment ::= (expression '.')? name '=' expression    
+
+
+
+string may contain: \n, other escape sequences would be easy to add but are not supported
+by Jasmin
+
+keywords:
+if, for, this, class, public, private, protected, extends, true, false, super, exit(),
+null, void, return, new, print
+
+Built in classes:
+String {String(), String(Int), String toString(), String charAt(int), int length()}
+Object {Object(), String toString()}
+
+Built in Types:
+int, boolean
+
+Operators:
++ - * / ++ == != || && ! .
+

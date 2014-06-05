@@ -1,0 +1,286 @@
+/*
+Espresso Compiler - https://github.com/neevsamar/espresso.git
+
+Alireza Samar (A147053)
+Sepideh Sattar (A138894)
+*/
+
+package parser;
+
+import java_cup.runtime.*;
+import ast.*;
+import compiler.Modifier;
+import java.io.*;
+
+
+
+parser code
+{:
+private PrintWriter out;
+private int errorCount = 0;
+
+public parser(java_cup.runtime.Scanner s, PrintWriter out)
+{
+	this(s);
+	this.out = out;
+}
+
+public void report_error(String message, Object info)
+{
+    ++errorCount;
+
+    if (info instanceof Symbol)
+    {
+        Symbol sym = (Symbol)info;
+        if (sym.left > 0)
+            message += ": '" + sym.value + "' at row " + sym.left + ", column " + sym.right;
+    }
+
+    if (out == null)
+	System.err.println(message);
+    else
+	out.println(message);
+}
+
+public int getErrorCount()
+{
+	return errorCount;
+}
+:};
+
+
+
+terminal PUBLIC, PRIVATE, PROTECTED, IF, FOR, THIS, CLASS, EXTENDS, TRUE, FALSE, SUPER,
+	EXIT, PRINT, NULL, VOID, RETURN, NEW, BIT_INT, BIT_BOOLEAN;
+
+terminal SEMI_COLON, COMMA, DOT, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACKET, RIGHT_BRACKET, SLASH,
+	ASTERISK, PLUS_PLUS, PLUS, MINUS, EQ_EQ, NOT_EQ, EQ, NOT, AND, OR, UMINUS;
+
+terminal Integer NUMBER;
+terminal String NAME, STRING;
+
+
+non terminal ListNode slotList, program, stmtList, argList, paramList, argListOpt, paramListOpt;
+
+non terminal ClassNode classDef;
+non terminal SlotNode fieldDef, methodDef, slot;
+non terminal Node statement;
+non terminal ExprNode expression, expressionOpt, stExpression, varExpr;
+non terminal DeclNode declaration;
+non terminal AssNode assignment;
+non terminal String type;
+non terminal Modifier accessMod;
+non terminal CompoundNode compoundStatement;
+
+
+
+precedence left OR;
+precedence left AND;
+precedence nonassoc EQ_EQ, NOT_EQ;
+precedence right NOT;
+precedence left PLUS_PLUS;
+precedence left PLUS, MINUS;
+precedence left ASTERISK, SLASH;
+precedence right DOT;
+precedence left UMINUS;
+
+
+
+
+program	::= program:p classDef:c
+		{: RESULT = new ListNode(p, c); :}
+	| classDef:c
+		{: RESULT = new ListNode(c, null); :}
+	| error
+	;
+
+classDef	::= CLASS NAME:n LEFT_BRACE slotList:l RIGHT_BRACE
+			{: RESULT = new ClassNode(n, l, nleft, nright); :}
+		| CLASS NAME:n EXTENDS NAME:s LEFT_BRACE slotList:l RIGHT_BRACE
+			{: RESULT = new ClassNode(n, s, l, nleft, nright); :}
+		;
+
+slotList	::= slotList:l slot:s
+			{: RESULT = new ListNode(l, s); :}
+		|
+			{: RESULT = null; :}
+		;
+
+slot	::= methodDef:m
+		{: RESULT = m; :}
+	| fieldDef:f
+		{: RESULT = f; :}
+	;
+
+fieldDef	::= accessMod:m type:t NAME:n EQ expression:e SEMI_COLON
+			{: RESULT = new FieldNode(n, m, t, e, nleft, nright); :}
+		;
+
+methodDef	::= accessMod:m type:t NAME:n LEFT_BRACKET argListOpt:args RIGHT_BRACKET compoundStatement:s
+			{: RESULT = new MethodNode(n, args, m, t, s, nleft, nright); :}
+		| accessMod:m NAME:n LEFT_BRACKET argListOpt:args RIGHT_BRACKET compoundStatement:s
+			{: RESULT = new ConstructorNode(n, args, m, s, nleft, nright); :}
+		;
+
+
+accessMod	::= PUBLIC
+			{: RESULT = Modifier.PUBLIC; :}
+		| PRIVATE
+			{: RESULT = Modifier.PRIVATE; :}
+		| PROTECTED
+			{: RESULT = Modifier.PROTECTED; :}
+		;
+
+type	::= BIT_INT
+		{: RESULT = "int"; :}
+	| BIT_BOOLEAN
+		{: RESULT = "boolean"; :}
+	| VOID
+		{: RESULT = "void"; :}
+	| NAME:n
+		{: RESULT = n; :}
+	;
+
+
+statement	::= declaration:d SEMI_COLON
+			{: RESULT = d; :}
+		| stExpression:e SEMI_COLON
+			{: RESULT = e; :}
+		| compoundStatement:cs
+			{: RESULT = cs; :}
+
+		| RETURN:r expression:e SEMI_COLON
+			{: RESULT = new ReturnNode(e, rleft, rright); :}
+		| RETURN:r SEMI_COLON
+			{: RESULT = new ReturnNode(null, rleft, rright); :}
+		| EXIT:x SEMI_COLON
+			{: RESULT = new ExitNode(xleft, xright); :}
+		| PRINT:p LEFT_BRACKET expression:e RIGHT_BRACKET SEMI_COLON
+			{: RESULT = new PrintNode(e, pleft, pright); :}
+
+		| IF:n LEFT_BRACKET expression:e RIGHT_BRACKET statement:s
+			{: RESULT = new IfNode(e, s, nleft, nright); :}
+		| FOR:n LEFT_BRACKET expressionOpt:e1 SEMI_COLON expression:e2 SEMI_COLON expressionOpt:e3 RIGHT_BRACKET statement:s
+			{: RESULT = new ForNode(e1, e2, e3, s, nleft, nright); :}
+		| FOR:n LEFT_BRACKET declaration:e1 SEMI_COLON expression:e2 SEMI_COLON expressionOpt:e3 RIGHT_BRACKET statement:s
+			{: RESULT = new ForNode(e1, e2, e3, s, nleft, nright); :}
+		| SUPER:n LEFT_BRACKET paramListOpt:params RIGHT_BRACKET SEMI_COLON
+			{: RESULT = new SuperCallNode(params, nleft, nright); :}
+		;
+
+compoundStatement	::= LEFT_BRACE:lb stmtList:l RIGHT_BRACE
+				{: RESULT = new CompoundNode(l, lbleft, lbright); :}
+			;
+
+stmtList	::= stmtList:l statement:s
+			{: RESULT = new ListNode(l, s); :}
+		|
+			{: RESULT = null; :}
+		;
+
+
+argListOpt	::= argList:l
+			{: RESULT = l; :}
+		|
+			{: RESULT = null; :}
+		;
+
+argList	::= type:t NAME:n
+		{: RESULT = new ListNode(new ArgNode(n, t, nleft, nright), null); :}
+	| type:t NAME:n COMMA argList:l
+		{: RESULT = new ListNode(new ArgNode(n, t, nleft, nright), l); :}
+	;
+
+paramListOpt	::= paramList:l
+			{: RESULT = l; :}
+		|
+			{: RESULT = null; :}
+		;
+
+paramList	::= expression:e
+			{: RESULT = new ListNode(e, null); :}
+		| expression:e COMMA paramList:l
+			{: RESULT = new ListNode(e, l); :}
+		;
+
+expression	::= LEFT_BRACKET expression:e RIGHT_BRACKET
+			{: RESULT = new BracketNode(e, eleft, eright); :}
+
+		| expression:e1 PLUS:n expression:e2
+			{: RESULT = new AddNode(e1, e2, nleft, nright); :}
+		| expression:e1 PLUS_PLUS:n expression:e2
+			{: RESULT = new ConcatNode(e1, e2, nleft, nright); :}
+		| expression:e1 MINUS:n expression:e2
+			{: RESULT = new SubNode(e1, e2, nleft, nright); :}
+		| expression:e1 ASTERISK:n expression:e2
+			{: RESULT = new MultNode(e1, e2, nleft, nright); :}
+		| expression:e1 SLASH:n expression:e2
+			{: RESULT = new DivNode(e1, e2, nleft, nright); :}
+
+		| expression:e1 OR:n expression:e2
+			{: RESULT = new OrNode(e1, e2, nleft, nright); :}
+		| expression:e1 AND:n expression:e2
+			{: RESULT = new AndNode(e1, e2, nleft, nright); :}
+
+		| expression:e1 EQ_EQ:n expression:e2
+			{: RESULT = new EqNode(e1, e2, nleft, nright); :}
+		| expression:e1 NOT_EQ:n expression:e2
+			{: RESULT = new NotEqNode(e1, e2, nleft, nright); :}
+
+		| MINUS:n expression:e
+			{: RESULT = new NegNode(e, nleft, nright); :}
+		%prec UMINUS
+		| NOT:n expression:e
+			{: RESULT = new NotNode(e, nleft, nright); :}
+
+		| stExpression:e
+			{: RESULT = e; :}
+		| simpleExpr:e
+			{: RESULT = e; :}
+		| STRING:s
+			{: RESULT = new StringNode(s, sleft, sright); :}
+		| NUMBER:n
+			{: RESULT = new NumberNode(n, nleft, nright); :}
+		| TRUE:n
+			{: RESULT = new BooleanNode(true, nleft, nright); :}
+		| FALSE:n
+			{: RESULT = new BooleanNode(false, nleft, nright); :}
+		| NULL:n
+			{: RESULT = new NullNode(nleft, nright); :}
+		| varExpr:e
+			{: RESULT = e; :}
+		| error
+		;
+
+
+varExpr	::= expression:e DOT NAME:n
+			{: RESULT = new FieldAccessNode(e, n, nleft, nright); :}
+		| NAME:n
+			{: RESULT = new VarNode(n, nleft, nright); :}
+		| THIS:n
+			{: RESULT = new VarNode(VarNode.THIS, nleft, nright); :}
+		;
+
+stExpression	::= assignment: a
+			{: RESULT = a; :}
+		| expression:e DOT NAME:n LEFT_BRACKET paramListOpt:params RIGHT_BRACKET
+			{: RESULT = new MethodInvocNode(e, n, params, nleft, nright); :}
+		| NAME:n LEFT_BRACKET paramListOpt:params RIGHT_BRACKET
+			{: RESULT = new MethodInvocNode(new VarNode(VarNode.THIS, nleft, nright), n, params, nleft, nright); :}
+		| NEW NAME:n LEFT_BRACKET paramListOpt:params RIGHT_BRACKET
+			{: RESULT = new NewNode(n, params, nleft, nright); :}
+		;
+
+expressionOpt	::= expression:e
+			{: RESULT = e; :}
+		|
+			{: RESULT = null; :}
+		;
+
+declaration	::= type:t NAME:n EQ expression:e
+			{: RESULT = new DeclNode(n, t, e, nleft, nright); :}
+		;
+
+assignment	::= varExpr:e1 EQ expression:e2
+			{: RESULT = new AssNode(e1, e2, e1left, e1right); :}
+		;
